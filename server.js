@@ -1,19 +1,20 @@
-const Vue = require('vue')
 const express = require('express')
 const fs = require('fs')
 const { createBundleRenderer } = require('vue-server-renderer')
 const setupDevServer = require('./build/setup-dev-server')
 
 const server = express()
+
 server.use('/dist', express.static('./dist'))
 
 const isProd = process.env.NODE_ENV === 'production'
+
 let renderer
 let onReady
-if(isProd) {
+if (isProd) {
   const serverBundle = require('./dist/vue-ssr-server-bundle.json')
-  const clientManifest = require('./dist/vue-ssr-client-manifest.json')
   const template = fs.readFileSync('./index.template.html', 'utf-8')
+  const clientManifest = require('./dist/vue-ssr-client-manifest.json')
   renderer = createBundleRenderer(serverBundle, {
     template,
     clientManifest
@@ -28,29 +29,33 @@ if(isProd) {
   })
 }
 
-const render = (req, res) => {
-  renderer.renderToString({
-    title: 'licop',
-    meta: `
-      <meta name="description" content="vue ssr">
-    `
-  }, (err, html) => {
-    if (err) {
-      return res.status(500).end('Internal Server Error')
-    }
-    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+const render = async (req, res) => {
+  try {
+    const html = await renderer.renderToString({
+      title: 'vue ssr',
+      meta: `
+        <meta name="description" content="vue ssr">
+      `,
+      url: req.url
+    })
+    res.setHeader('Content-Type', 'text/html; charset=utf8')
     res.end(html)
-  })
+  } catch (err) {
+    console.log(err)
+    res.status(500).end('Internal Server Error.')
+  }
 }
-server.get('/', isProd 
-  ? render 
+
+// 服务端路由设置为 *，意味着所有的路由都会进入这里
+server.get('*', isProd
+  ? render
   : async (req, res) => {
-    // 等待有渲染器Renderer以后，调用render渲染
+    // 等待有了 Renderer 渲染器以后，调用 render 进行渲染
     await onReady
-    render()
+    render(req, res)
   }
 )
 
 server.listen(3000, () => {
-  console.log('server run at port 3000')
+  console.log('server running at port 3000.')
 })
